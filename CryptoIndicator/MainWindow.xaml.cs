@@ -19,17 +19,22 @@ using Binance.Net.Objects.Models.Futures;
 using CryptoIndicator.Interval;
 using CryptoIndicator.Model;
 using CryptoIndicator.Objects;
+using System.Data.Entity;
+using System.Runtime.InteropServices;
 
 namespace CryptoIndicator
 {
     public partial class MainWindow : Window
     {
+        public List<Candle> Candles= new List<Candle>();
+        public List<HistoryOrder> HistoryOrders = new List<HistoryOrder>();
+        public List<BinanceFuturesOrder> BinanceFuturesOrders = new List<BinanceFuturesOrder>();
         public Variables variables { get; set; } = new Variables();
         public int LINE { get; set; } = 2;
         public string API_KEY { get; set; } = "";
         public string SECRET_KEY { get; set; } = "";
         public string CLIENT_NAME { get; set; } = "";
-        public int COUNT_CANDLES { get; set; } = 100;
+        public int COUNT_CANDLES { get; set; } = 200;
         public int SMA_LONG { get; set; } = 20;
         public decimal USDT_BET { get; set; } = 10;
         public double BOLINGER_TP { get; set; } = 100;
@@ -70,26 +75,31 @@ namespace CryptoIndicator
             INTERVAL_TIME.SelectedIndex = 0;
             LIST_SYMBOLS.ItemsSource = list_sumbols_name;
             this.DataContext = this;
+            variables.PropertyChanged += Variables_PropertyChanged;
+        }
 
-            //Create Table BinanceFuturesOrders
-            using (ModelBinanceFuturesOrder context = new ModelBinanceFuturesOrder())
+        private void Variables_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if(e.PropertyName == "IsDataBase")
             {
-                context.BinanceFuturesOrders.Create();
-            }
-            //Create Table HistoryOrders
-            using (ModelHistoryOrder context = new ModelHistoryOrder())
-            {
-                context.HistoryOrders.Create();
-            }
-            //Create Table Candles
-            using (ModelCandle context = new ModelCandle())
-            {
-                context.Candles.Create();
-            }
-            //Create Table Clients
-            using (ModelClient context = new ModelClient())
-            {
-                context.Clients.Create();
+                if (variables.IsDataBase)
+                {
+                    //Create Table BinanceFuturesOrders
+                    using (ModelBinanceFuturesOrder context = new ModelBinanceFuturesOrder())
+                    {
+                        context.BinanceFuturesOrders.Create();
+                    }
+                    //Create Table HistoryOrders
+                    using (ModelHistoryOrder context = new ModelHistoryOrder())
+                    {
+                        context.HistoryOrders.Create();
+                    }
+                    //Create Table Candles
+                    using (ModelCandle context = new ModelCandle())
+                    {
+                        context.Candles.Create();
+                    }
+                }
             }
         }
         #endregion
@@ -100,14 +110,21 @@ namespace CryptoIndicator
         public long bet_order_id = 0;
         private void LongBet_Click(object sender, RoutedEventArgs e)
         {
-            string symbol = LIST_SYMBOLS.Text;
-            if (bet_order_id == 0)
+            try
             {
-                if (USDT_BET > 0m && variables.PRICE_SYMBOL > 0m)
+                string symbol = LIST_SYMBOLS.Text;
+                if (bet_order_id == 0)
                 {
-                    quantity_bet = Math.Round(USDT_BET / variables.PRICE_SYMBOL, 1);
-                    bet_order_id = Algorithm.Algorithm.OpenOrder(socket, symbol, quantity_bet, PositionSide.Long);
+                    if (USDT_BET > 0m && variables.PRICE_SYMBOL > 0m)
+                    {
+                        quantity_bet = Math.Round(USDT_BET / variables.PRICE_SYMBOL, 1);
+                        bet_order_id = Algorithm.Algorithm.OpenOrder(socket, symbol, quantity_bet, PositionSide.Long);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                ErrorText.Add(ex.ToString());
             }
         }
         private void ShortBet_Click(object sender, RoutedEventArgs e)
@@ -135,11 +152,23 @@ namespace CryptoIndicator
             History();
             double sum_total = 0;
             int count_orders = 0;
-            foreach (var it in ConnectHistoryOrder.Get())
+            if (variables.IsDataBase)
             {
-                history_order.Insert(0, it);
-                sum_total += it.total;
-                count_orders++;
+                foreach (var it in ConnectHistoryOrder.Get())
+                {
+                    history_order.Insert(0, it);
+                    sum_total += it.total;
+                    count_orders++;
+                }
+            }
+            else
+            {
+                foreach (var it in HistoryOrders)
+                {
+                    history_order.Insert(0, it);
+                    sum_total += it.total;
+                    count_orders++;
+                }
             }
             COUNT_ORDERS.Content = count_orders;
             SUM_TOTAL.Content = sum_total;
@@ -153,18 +182,47 @@ namespace CryptoIndicator
             try
             {
                 history_order.Clear();
-                ConnectHistoryOrder.DeleteAll();
-                List<BinanceFuturesOrder> orders = ConnectOrder.Get();
+                if (variables.IsDataBase)
+                {
+                    ConnectHistoryOrder.DeleteAll();
+                }
+                else
+                {
+                    HistoryOrders.Clear();
+                }
+                List<BinanceFuturesOrder> orders = new List<BinanceFuturesOrder>();
+                if(variables.IsDataBase)
+                {
+                    orders = ConnectOrder.Get();
+                }
+                else
+                {
+                    orders = BinanceFuturesOrders;
+                }
                 int i = 0;
-                foreach (var it in ConnectOrder.Get())
+                foreach (var it in orders)
                 {
                     if (it.PositionSide == PositionSide.Long && it.Side == OrderSide.Sell)
                     {
-                        ConnectHistoryOrder.Insert(new HistoryOrder(it.CreateTime, it.Symbol, Convert.ToDouble(orders[i - 1].AvgPrice), Convert.ToDouble(it.AvgPrice), Convert.ToDouble(orders[i - 1].QuoteQuantityFilled), Convert.ToDouble(it.QuoteQuantityFilled), it.PositionSide));
+                        if(variables.IsDataBase)
+                        {
+                            ConnectHistoryOrder.Insert(new HistoryOrder(it.CreateTime, it.Symbol, Convert.ToDouble(orders[i - 1].AvgPrice), Convert.ToDouble(it.AvgPrice), Convert.ToDouble(orders[i - 1].QuoteQuantityFilled), Convert.ToDouble(it.QuoteQuantityFilled), it.PositionSide));
+                        }
+                        else
+                        {
+                            HistoryOrders.Add(new HistoryOrder(it.CreateTime, it.Symbol, Convert.ToDouble(orders[i - 1].AvgPrice), Convert.ToDouble(it.AvgPrice), Convert.ToDouble(orders[i - 1].QuoteQuantityFilled), Convert.ToDouble(it.QuoteQuantityFilled), it.PositionSide));
+                        }
                     }
                     else if (it.PositionSide == PositionSide.Short && it.Side == OrderSide.Buy)
                     {
-                        ConnectHistoryOrder.Insert(new HistoryOrder(it.CreateTime, it.Symbol, Convert.ToDouble(orders[i - 1].AvgPrice), Convert.ToDouble(it.AvgPrice), Convert.ToDouble(orders[i - 1].QuoteQuantityFilled), Convert.ToDouble(it.QuoteQuantityFilled), it.PositionSide));
+                        if (variables.IsDataBase)
+                        {
+                            ConnectHistoryOrder.Insert(new HistoryOrder(it.CreateTime, it.Symbol, Convert.ToDouble(orders[i - 1].AvgPrice), Convert.ToDouble(it.AvgPrice), Convert.ToDouble(orders[i - 1].QuoteQuantityFilled), Convert.ToDouble(it.QuoteQuantityFilled), it.PositionSide));
+                        }
+                        else
+                        {
+                            HistoryOrders.Add(new HistoryOrder(it.CreateTime, it.Symbol, Convert.ToDouble(orders[i - 1].AvgPrice), Convert.ToDouble(it.AvgPrice), Convert.ToDouble(orders[i - 1].QuoteQuantityFilled), Convert.ToDouble(it.QuoteQuantityFilled), it.PositionSide));
+                        }
                     }
                     i++;
                 }
@@ -177,6 +235,7 @@ namespace CryptoIndicator
         #endregion
 
         #region - Coordinate Orders -
+
         List<double> long_open_order_x = new List<double>();
         List<double> long_open_order_y = new List<double>();
         List<double> long_close_order_x = new List<double>();
@@ -201,7 +260,13 @@ namespace CryptoIndicator
                 string symbol = LIST_SYMBOLS.Text;
                 if (symbol != "")
                 {
-                    ConnectOrder.DeleteAll();
+                    if (variables.IsDataBase) { 
+                        ConnectOrder.DeleteAll();
+                    }
+                    else
+                    {
+                        BinanceFuturesOrders.Clear();
+                    }
                     foreach (var it in Algorithm.AlgorithmBet.InfoOrder(socket, symbol, start_time))
                     {
 
@@ -210,26 +275,53 @@ namespace CryptoIndicator
                             long_open_order_x.Add(it.CreateTime.ToOADate());
                             long_open_order_y.Add(Double.Parse(it.AvgPrice.ToString()));
                             check_one = true;
-                            ConnectOrder.Insert(it);
+                            if (variables.IsDataBase) { 
+                                ConnectOrder.Insert(it);
+                            }
+                            else
+                            {
+                                BinanceFuturesOrders.Add(it);
+                            }
                         }
                         else if (it.PositionSide == PositionSide.Long && it.Side == OrderSide.Sell && check_one)
                         {
                             long_close_order_x.Add(it.CreateTime.ToOADate());
                             long_close_order_y.Add(Double.Parse(it.AvgPrice.ToString()));
-                            ConnectOrder.Insert(it);
+                            if (variables.IsDataBase)
+                            {
+                                ConnectOrder.Insert(it);
+                            }
+                            else
+                            {
+                                BinanceFuturesOrders.Add(it);
+                            }
                         }
                         else if (it.PositionSide == PositionSide.Short && it.Side == OrderSide.Sell)
                         {
                             short_open_order_x.Add(it.CreateTime.ToOADate());
                             short_open_order_y.Add(Double.Parse(it.AvgPrice.ToString()));
                             check_one = true;
-                            ConnectOrder.Insert(it);
+                            if (variables.IsDataBase)
+                            {
+                                ConnectOrder.Insert(it);
+                            }
+                            else
+                            {
+                                BinanceFuturesOrders.Add(it);
+                            }
                         }
                         else if (it.PositionSide == PositionSide.Short && it.Side == OrderSide.Buy && check_one)
                         {
                             short_close_order_x.Add(it.CreateTime.ToOADate());
                             short_close_order_y.Add(Double.Parse(it.AvgPrice.ToString()));
-                            ConnectOrder.Insert(it);
+                            if (variables.IsDataBase)
+                            {
+                                ConnectOrder.Insert(it);
+                            }
+                            else
+                            {
+                                BinanceFuturesOrders.Add(it);
+                            }
                         }
                     }
                 }
@@ -280,7 +372,8 @@ namespace CryptoIndicator
                 {
                     list_candle_ohlc.Clear();
                     List<Candle> list_candles = new List<Candle>();
-                    list_candles = ConnectCandle.Get();
+                    if (variables.IsDataBase) list_candles = ConnectCandle.Get();
+                    else list_candles = Candles;
                     foreach (Candle it in list_candles)
                     {
                         list_candle_ohlc.Add(new OHLC(it.Open, it.High, it.Low, it.Close, it.DateTime, TimeSpan.FromTicks(it.TimeSpan)));
@@ -293,13 +386,18 @@ namespace CryptoIndicator
                 ErrorText.Add($"LoadingCandlesToChart {c.Message}");
             }
         }
-
         private void ReloadChart()
         {
             if (socket != null && SMA_LONG > 1 && COUNT_CANDLES > 0 && COUNT_CANDLES > SMA_LONG && COUNT_CANDLES < 500)
             {
                 StopAsync();
-                ConnectCandle.DeleteAll();
+                if (variables.IsDataBase)
+                {
+                    ConnectCandle.DeleteAll();
+                }
+                else {
+                    Candles.Clear();
+                }
                 LoadingCandlesToDB();
                 if (variables.ONLINE_CHART) StartKlineAsync();
                 LoadingCandlesToChart();
@@ -701,7 +799,7 @@ namespace CryptoIndicator
                 ErrorText.Add($"STOP_ASYNC_Click {c.Message}");
             }
         }
-        public Candle candle = new Candle();
+        //public Candle candle = new Candle();
         public void StartKlineAsync()
         {
             StartPriceAsync();
@@ -709,6 +807,7 @@ namespace CryptoIndicator
             {
                 Dispatcher.Invoke(new Action(() =>
                 {
+                    Candle candle = new Candle();
                     candle.DateTime = Message.Data.Data.OpenTime;
                     candle.Open = Decimal.ToDouble(Message.Data.Data.OpenPrice);
                     candle.High = Decimal.ToDouble(Message.Data.Data.HighPrice);
@@ -716,7 +815,22 @@ namespace CryptoIndicator
                     candle.Close = Decimal.ToDouble(Message.Data.Data.ClosePrice);
                     candle.TimeSpan = timeSpan.Ticks;
                     variables.PRICE_SYMBOL = Message.Data.Data.ClosePrice;
-                    if (!ConnectCandle.Update(candle)) ConnectCandle.Insert(candle);
+                    if(variables.IsDataBase)
+                    {
+                        if (!ConnectCandle.Update(candle)) ConnectCandle.Insert(candle);
+                    }
+                    else
+                    {
+                        if (Candles[Candles.Count - 1].DateTime == candle.DateTime)
+                        {
+                            Candles[Candles.Count - 1] = candle;
+                        }
+                        else
+                        {
+                            Candles.Add(candle);
+                        }
+                    }
+
                     LoadingCandlesToChart();
                     LoadingChart();
                     plt.Refresh();
@@ -746,15 +860,25 @@ namespace CryptoIndicator
                 if (!result.Success) ErrorText.Add("Error GetKlinesAsync");
                 else
                 {
+                    List<Candle> list = new List<Candle>();
                     foreach (var it in result.Data.ToList())
                     {
+                        Candle candle = new Candle();
                         candle.DateTime = it.OpenTime;
                         candle.Open = Decimal.ToDouble(it.OpenPrice);
                         candle.High = Decimal.ToDouble(it.HighPrice);
                         candle.Low = Decimal.ToDouble(it.LowPrice);
                         candle.Close = Decimal.ToDouble(it.ClosePrice);
                         candle.TimeSpan = timeSpan.Ticks;
-                        ConnectCandle.Insert(candle);
+                        list.Add(candle);
+                    }
+                    if (variables.IsDataBase)
+                    {
+                        ConnectCandle.InsertRange(list);
+                    }
+                    else
+                    {
+                        Candles = list;
                     }
                     variables.PRICE_SYMBOL = result.Data.ToList()[result.Data.ToList().Count - 1].ClosePrice;
                 }

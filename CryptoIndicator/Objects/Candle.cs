@@ -5,7 +5,6 @@ namespace CryptoIndicator.Objects
 {
     public class Candle
     {
-        [Dapper.Contrib.Extensions.ExplicitKey]
         [Key]
         public DateTime DateTime { get; set; }
         public double Open { get; set; }

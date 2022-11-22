@@ -36,6 +36,16 @@ namespace CryptoIndicator.Model
                 OnPropertyChanged("ONLINE_CHART");
             }
         }
+        private bool _isDataBase = true;
+        public bool IsDataBase
+        {
+            get { return _isDataBase; }
+            set
+            {
+                _isDataBase = value;
+                OnPropertyChanged("IsDataBase");
+            }
+        }
         public event PropertyChangedEventHandler PropertyChanged;
         public void OnPropertyChanged([CallerMemberName] string prop = "")
         {

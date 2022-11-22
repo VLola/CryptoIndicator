@@ -41,8 +41,11 @@ namespace CryptoIndicator.Algorithm
         public static long Order(Socket socket, string symbol, OrderSide side, FuturesOrderType type, decimal quantity, PositionSide position_side)
         {
             var result = socket.futures.Trading.PlaceOrderAsync(symbol: symbol, side: side, type: type, quantity: quantity, positionSide: position_side).Result;
-            if (!result.Success) ErrorText.Add($"Failed OpenOrder: {result.Error.Message}");
-            return result.Data.Id;
+            if (!result.Success) {
+                ErrorText.Add($"Failed OpenOrder: {result.Error.Message}");
+                return -1;
+            }
+            else return result.Data.Id;
         }
         public static PositionSide InfoOrderPositionSide(Socket socket, string symbol, long order_id)
         {

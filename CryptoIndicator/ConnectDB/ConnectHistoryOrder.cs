@@ -1,51 +1,28 @@
-﻿using CryptoIndicator.Objects;
-using Dapper;
-using Dapper.Contrib.Extensions;
+﻿using CryptoIndicator.Model;
+using CryptoIndicator.Objects;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
 using System.Linq;
 
 namespace CryptoIndicator.ConnectDB
 {
     public static class ConnectHistoryOrder
     {
-        public static string connectionString = @"Data Source=.\SQLEXPRESS;Initial Catalog=ModelHistoryOrder;Integrated Security=True;Connect Timeout=30;Encrypt=False;TrustServerCertificate=False;ApplicationIntent=ReadWrite;MultiSubnetFailover=False";
-        //public static string connectionString = @"Data Source=WIN-D7QGD778252\SQLEXPRESS;Initial Catalog=ModelHistoryOrder;Integrated Security=True;Connect Timeout=30;Encrypt=False;TrustServerCertificate=False;ApplicationIntent=ReadWrite;MultiSubnetFailover=False";
-        public static long Insert(HistoryOrder order)
+        public static void Insert(HistoryOrder order)
         {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                return connection.Insert(order);
-            }
+            ModelHistoryOrder modelHistoryOrder = new ModelHistoryOrder();
+            modelHistoryOrder.HistoryOrders.Add(order);
+            modelHistoryOrder.SaveChanges();
         }
         public static List<HistoryOrder> Get()
         {
-            using (IDbConnection connection = new SqlConnection(connectionString))
-            {
-                return connection.Query<HistoryOrder>($"SELECT * FROM HistoryOrders").ToList();
-            }
+            ModelHistoryOrder modelHistoryOrder = new ModelHistoryOrder();
+            return modelHistoryOrder.HistoryOrders.ToList();
         }
         public static void DeleteAll()
         {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                connection.DeleteAll<HistoryOrder>();
-            }
-        }
-        public static bool Update(HistoryOrder order)
-        {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                return connection.Update(order);
-            }
-        }
-        public static void Delete(long id)
-        {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                connection.Delete(new HistoryOrder() { Id = id });
-            }
+            ModelHistoryOrder modelHistoryOrder = new ModelHistoryOrder();
+            modelHistoryOrder.HistoryOrders.RemoveRange(modelHistoryOrder.HistoryOrders.ToList());
+            modelHistoryOrder.SaveChanges();
         }
     }
 }

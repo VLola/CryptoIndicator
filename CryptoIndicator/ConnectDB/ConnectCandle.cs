@@ -1,50 +1,42 @@
-﻿using CryptoIndicator.Objects;
-using Dapper;
-using Dapper.Contrib.Extensions;
+﻿using CryptoIndicator.Model;
+using CryptoIndicator.Objects;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
+using System.Data.Entity.Migrations;
 using System.Linq;
 
 namespace CryptoIndicator.ConnectDB
 {
     public static class ConnectCandle
     {
-        public static string connectionString = @"Data Source=.\SQLEXPRESS;Initial Catalog=ModelCandle;Integrated Security=True;Connect Timeout=30;Encrypt=False;TrustServerCertificate=False;ApplicationIntent=ReadWrite;MultiSubnetFailover=False";
-        public static long Insert(Candle candle)
+        public static void Insert(Candle candle)
         {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                return connection.Insert(candle);
-            }
+            ModelCandle modelCandle = new ModelCandle();
+            modelCandle.Candles.Add(candle);
+            modelCandle.SaveChanges();
+        }
+        public static void InsertRange(List<Candle> candles)
+        {
+            ModelCandle modelCandle = new ModelCandle();
+            modelCandle.Candles.AddRange(candles);
+            modelCandle.SaveChanges();
         }
         public static List<Candle> Get()
         {
-            using (IDbConnection connection = new SqlConnection(connectionString))
-            {
-                return connection.Query<Candle>($"SELECT * FROM Candles").ToList();
-            }
+            ModelCandle modelCandle = new ModelCandle();
+            return modelCandle.Candles.ToList();
         }
         public static void DeleteAll()
         {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                connection.DeleteAll<Candle>();
-            }
+            ModelCandle modelCandle = new ModelCandle();
+            modelCandle.Candles.RemoveRange(modelCandle.Candles.ToList());
+            modelCandle.SaveChanges();
         }
         public static bool Update(Candle candle)
         {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                return connection.Update(candle);
-            }
-        }
-        public static void Delete(Candle candle)
-        {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                connection.Delete(candle);
-            }
+            ModelCandle modelCandle = new ModelCandle();
+            modelCandle.Candles.AddOrUpdate(candle);
+            modelCandle.SaveChanges();
+            return true;
         }
     }
 }
