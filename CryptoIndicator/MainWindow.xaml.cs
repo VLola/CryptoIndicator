@@ -817,7 +817,7 @@ namespace CryptoIndicator
                     variables.PRICE_SYMBOL = Message.Data.Data.ClosePrice;
                     if(variables.IsDataBase)
                     {
-                        if (!ConnectCandle.Update(candle)) ConnectCandle.Insert(candle);
+                        ConnectCandle.Update(candle);
                     }
                     else
                     {

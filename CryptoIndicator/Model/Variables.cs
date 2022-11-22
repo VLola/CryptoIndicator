@@ -36,7 +36,7 @@ namespace CryptoIndicator.Model
                 OnPropertyChanged("ONLINE_CHART");
             }
         }
-        private bool _isDataBase = true;
+        private bool _isDataBase = false;
         public bool IsDataBase
         {
             get { return _isDataBase; }

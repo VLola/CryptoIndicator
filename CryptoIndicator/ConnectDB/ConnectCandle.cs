@@ -31,12 +31,11 @@ namespace CryptoIndicator.ConnectDB
             modelCandle.Candles.RemoveRange(modelCandle.Candles.ToList());
             modelCandle.SaveChanges();
         }
-        public static bool Update(Candle candle)
+        public static void Update(Candle candle)
         {
             ModelCandle modelCandle = new ModelCandle();
             modelCandle.Candles.AddOrUpdate(candle);
             modelCandle.SaveChanges();
-            return true;
         }
     }
 }
