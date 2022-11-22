@@ -43,7 +43,7 @@ namespace CryptoIndicator.Algorithm
             var result = socket.futures.Trading.PlaceOrderAsync(symbol: symbol, side: side, type: type, quantity: quantity, positionSide: position_side).Result;
             if (!result.Success) {
                 ErrorText.Add($"Failed OpenOrder: {result.Error.Message}");
-                return -1;
+                return 0;
             }
             else return result.Data.Id;
         }

@@ -135,6 +135,7 @@
     <Compile Include="Model\Variables.cs" />
     <Compile Include="Objects\Candle.cs" />
     <Compile Include="Objects\HistoryOrder.cs" />
+    <Compile Include="Objects\Symbol.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>

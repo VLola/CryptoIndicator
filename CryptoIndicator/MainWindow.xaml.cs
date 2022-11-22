@@ -21,6 +21,13 @@ using CryptoIndicator.Model;
 using CryptoIndicator.Objects;
 using System.Data.Entity;
 using System.Runtime.InteropServices;
+using Binance.Net.Clients;
+using Binance.Net.Objects;
+using CryptoExchange.Net.Interfaces;
+using System.Threading.Tasks;
+using System.Windows.Documents;
+using CryptoIndicator.Indicators;
+using static CryptoIndicator.Indicators.SAR;
 
 namespace CryptoIndicator
 {
@@ -29,6 +36,7 @@ namespace CryptoIndicator
         public List<Candle> Candles= new List<Candle>();
         public List<HistoryOrder> HistoryOrders = new List<HistoryOrder>();
         public List<BinanceFuturesOrder> BinanceFuturesOrders = new List<BinanceFuturesOrder>();
+        public List<Symbol> Symbols = new List<Symbol>();
         public Variables variables { get; set; } = new Variables();
         public int LINE { get; set; } = 2;
         public string API_KEY { get; set; } = "";
@@ -36,7 +44,7 @@ namespace CryptoIndicator
         public string CLIENT_NAME { get; set; } = "";
         public int COUNT_CANDLES { get; set; } = 200;
         public int SMA_LONG { get; set; } = 20;
-        public decimal USDT_BET { get; set; } = 10;
+        public decimal USDT_BET { get; set; } = 11;
         public double BOLINGER_TP { get; set; } = 100;
         public double BOLINGER_SL { get; set; } = 100;
         public Socket socket;
@@ -50,6 +58,8 @@ namespace CryptoIndicator
         public ScatterPlot order_long_close_plot;
         public ScatterPlot order_short_open_plot;
         public ScatterPlot order_short_close_plot;
+        public ScatterPlot indicator_sar_long_plot;
+        public ScatterPlot indicator_sar_short_plot;
         public List<ScatterPlot> order_long_lines_vertical = new List<ScatterPlot>();
         public List<ScatterPlot> order_long_lines_horisontal = new List<ScatterPlot>();
         public List<ScatterPlot> order_short_lines_vertical = new List<ScatterPlot>();
@@ -117,7 +127,7 @@ namespace CryptoIndicator
                 {
                     if (USDT_BET > 0m && variables.PRICE_SYMBOL > 0m)
                     {
-                        quantity_bet = Math.Round(USDT_BET / variables.PRICE_SYMBOL, 1);
+                        quantity_bet = RoundQuantity(USDT_BET / variables.PRICE_SYMBOL);
                         bet_order_id = Algorithm.Algorithm.OpenOrder(socket, symbol, quantity_bet, PositionSide.Long);
                     }
                 }
@@ -134,7 +144,7 @@ namespace CryptoIndicator
             {
                 if (USDT_BET > 0m && variables.PRICE_SYMBOL > 0m)
                 {
-                    quantity_bet = Math.Round(USDT_BET / variables.PRICE_SYMBOL, 1);
+                    quantity_bet = RoundQuantity(USDT_BET / variables.PRICE_SYMBOL);
                     bet_order_id = Algorithm.Algorithm.OpenOrder(socket, symbol, quantity_bet, PositionSide.Short);
                 }
             }
@@ -143,6 +153,18 @@ namespace CryptoIndicator
         {
             string symbol = LIST_SYMBOLS.Text;
             if (bet_order_id != 0) bet_order_id = Algorithm.Algorithm.CloseOrder(socket, symbol, bet_order_id, quantity_bet);
+        }
+
+        private decimal RoundQuantity(decimal quantity)
+        {
+            Symbol symbol =  Symbols.First(item=>item.Name == LIST_SYMBOLS.Text);
+            decimal quantity_final = 0m;
+            if (symbol.StepSize == 0.001m) quantity_final = Math.Round(quantity, 3);
+            else if (symbol.StepSize == 0.01m) quantity_final = Math.Round(quantity, 2);
+            else if (symbol.StepSize == 0.1m) quantity_final = Math.Round(quantity, 1);
+            else if (symbol.StepSize == 1m) quantity_final = Math.Round(quantity, 0);
+            if (quantity_final < symbol.MinQuantity) return symbol.MinQuantity;
+            return quantity_final;
         }
         #endregion
 
@@ -439,20 +461,22 @@ namespace CryptoIndicator
                     plt.Plot.Remove(order_long_close_plot);
                     plt.Plot.Remove(order_short_open_plot);
                     plt.Plot.Remove(order_short_close_plot);
+                    plt.Plot.Remove(indicator_sar_long_plot);
+                    plt.Plot.Remove(indicator_sar_short_plot);
                     // Candles
                     candlePlot = plt.Plot.AddCandlesticks(list_candle_ohlc.ToArray());
-                    candlePlot.YAxisIndex = 1;
-                    // Sma
+                    //candlePlot.YAxisIndex = 1;
+                    //// Sma
                     sma_long = candlePlot.GetBollingerBands(SMA_LONG);
                     sma_long_plot = plt.Plot.AddScatterLines(sma_long.xs, sma_long.ys, Color.Orange, 2, label: SMA_LONG + " candles SMA");
                     sma_long_plot.YAxisIndex = 1;
-                    // Bolinger lower
+                    //// Bolinger lower
                     bolinger_lower = plt.Plot.AddScatterLines(sma_long.xs, sma_long.lower, Color.LightGreen, lineStyle: LineStyle.Dash);
                     bolinger_lower.YAxisIndex = 1;
-                    // Bolinger upper
+                    //// Bolinger upper
                     bolinger_upper = plt.Plot.AddScatterLines(sma_long.xs, sma_long.upper, Color.LightGreen, lineStyle: LineStyle.Dash);
                     bolinger_upper.YAxisIndex = 1;
-                    // Orders
+                    //// Orders
                     if (order_long_lines_vertical.Count > 0) foreach (var it in order_long_lines_vertical) plt.Plot.Remove(it);
                     if (order_long_lines_horisontal.Count > 0) foreach (var it in order_long_lines_horisontal) plt.Plot.Remove(it);
                     if (order_short_lines_vertical.Count > 0) foreach (var it in order_short_lines_vertical) plt.Plot.Remove(it);
@@ -515,6 +539,19 @@ namespace CryptoIndicator
                         order_short_open_plot = plt.Plot.AddScatter(short_open_order_x.ToArray(), short_open_order_y.ToArray(), color: Color.DarkRed, lineWidth: 0, markerSize: 8);
                         order_short_open_plot.YAxisIndex = 1;
                     }
+
+                    SAR Sar = new SAR();
+                    (List < SarInfo > SarLong, List<SarInfo> SarShort) = Sar.Calculate(list_candle_ohlc);
+
+                    List<double> Xlong = SarLong.Select(item => item.X).ToList();
+                    List<double> Ylong = SarLong.Select(item => item.Y).ToList();
+                    List<double> Xshort = SarShort.Select(item => item.X).ToList();
+                    List<double> Yshort = SarShort.Select(item => item.Y).ToList();
+
+                    indicator_sar_long_plot = plt.Plot.AddScatter(Xlong.ToArray(), Ylong.ToArray(), color: Color.LightPink, lineWidth: 0, markerSize: 5);
+                    indicator_sar_long_plot.YAxisIndex = 1;
+                    indicator_sar_short_plot = plt.Plot.AddScatter(Xshort.ToArray(), Yshort.ToArray(), color: Color.LightYellow, lineWidth: 0, markerSize: 5);
+                    indicator_sar_short_plot.YAxisIndex = 1;
 
                     StartAlgorithm();
 
@@ -692,7 +729,7 @@ namespace CryptoIndicator
                 {
                     if (USDT_BET > 0m && variables.PRICE_SYMBOL > 0m)
                     {
-                        quantity = Math.Round(USDT_BET / variables.PRICE_SYMBOL, 1);
+                        quantity = RoundQuantity(USDT_BET / variables.PRICE_SYMBOL);
 
                         order_id = Algorithm.AlgorithmBet.OpenOrder(socket, symbol, quantity, list_candle_ohlc[list_candle_ohlc.Count - 1].Close, sma_long.ys[sma_long.ys.Length - 1]);
 
@@ -731,27 +768,41 @@ namespace CryptoIndicator
         #region - List Sumbols -
         private void GetSumbolName()
         {
-            foreach (var it in ListSymbols())
+            Symbols = ListSymbols();
+            foreach (var it in Symbols)
             {
-                list_sumbols_name.Add(it.Symbol);
+                list_sumbols_name.Add(it.Name);
             }
             list_sumbols_name.Sort();
             LIST_SYMBOLS.Items.Refresh();
             LIST_SYMBOLS.SelectedIndex = 0;
         }
-        public List<BinancePrice> ListSymbols()
+        public List<Symbol> ListSymbols()
         {
+            List<Symbol> list = new List<Symbol>();
             try
             {
-                var result = socket.futures.ExchangeData.GetPricesAsync().Result;
-                if (!result.Success) ErrorText.Add("Error GetKlinesAsync");
-                return result.Data.ToList();
+                var result = socket.futures.ExchangeData.GetExchangeInfoAsync().Result;
+                if (!result.Success) ErrorText.Add($"Failed ListSymbols {result.Error?.Message}");
+                else
+                {
+                    foreach (var it in result.Data.Symbols.ToList())
+                    {
+                        list.Add(new Symbol()
+                        {
+                            Name = it.Name,
+                            MinQuantity = it.LotSizeFilter.MinQuantity,
+                            StepSize = it.LotSizeFilter.StepSize,
+                            TickSize = it.PriceFilter.TickSize
+                        });
+                    }
+                }
             }
             catch (Exception e)
             {
                 ErrorText.Add($"ListSymbols {e.Message}");
-                return ListSymbols();
             }
+            return list;
         }
 
         #endregion
